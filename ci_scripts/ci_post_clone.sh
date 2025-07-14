@@ -59,20 +59,53 @@ else
   exit 1
 fi
 
-# Install CocoaPods dependencies with specific version
+# Clean and reinstall CocoaPods dependencies
 echo "📱 Installing iOS dependencies..."
 cd ios/App
+
+# Clean any existing pods
+echo "🧹 Cleaning existing Pods..."
+rm -rf Pods/ Podfile.lock
 
 # Check if Podfile exists
 if [ -f "Podfile" ]; then
   echo "✅ Podfile found"
   cat Podfile
   
-  # Install pods with retry mechanism
-  pod install --repo-update --verbose || {
-    echo "⚠️ Pod install failed, trying without repo update..."
-    pod install --verbose
+  # Update CocoaPods repo first
+  echo "📦 Updating CocoaPods repo..."
+  pod repo update --silent || echo "⚠️ Repo update failed, continuing..."
+  
+  # Install pods with multiple retry attempts
+  echo "🔄 Installing Pods..."
+  pod install --verbose || {
+    echo "⚠️ Pod install failed, cleaning and retrying..."
+    rm -rf Pods/ Podfile.lock
+    pod deintegrate || echo "Deintegrate not needed"
+    pod install --verbose || {
+      echo "⚠️ Second attempt failed, trying basic install..."
+      pod install --no-repo-update --verbose
+    }
   }
+  
+  # Verify pod installation
+  if [ -d "Pods" ]; then
+    echo "✅ Pods installed successfully"
+    ls -la Pods/Target\ Support\ Files/Pods-App/ || echo "⚠️ Pods-App directory structure different"
+  else
+    echo "❌ Pods installation failed!"
+    exit 1
+  fi
+  
+  # Ensure Xcode scheme exists
+  echo "🔧 Verifying Xcode scheme..."
+  if [ ! -f "App.xcodeproj/xcshareddata/xcschemes/App.xcscheme" ]; then
+    echo "⚠️ App.xcscheme missing, this should be in version control"
+    echo "📋 Available schemes:"
+    ls -la App.xcodeproj/xcshareddata/xcschemes/ || echo "No xcschemes directory"
+  else
+    echo "✅ App.xcscheme found"
+  fi
 else
   echo "❌ Podfile missing!"
   exit 1
