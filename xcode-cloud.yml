@@ -12,29 +12,52 @@ workflows:
       - "main"
       - "master"
     
-    # Build environment
+    # Build environment - Use latest stable versions
     environment:
-      xcode: "15.2"
-      macos: "14.2"
+      xcode: "15.4"
+      macos: "14.5"
+      node: "20"
     
     # Build steps
     steps:
       # Step 1: Prepare Node.js environment and build web app
       - name: "Prepare Web App"
         script: |
+          set -e
           echo "🚀 Setting up Bean Stalker build environment..."
           
-          # Install Node.js dependencies
-          echo "📦 Installing dependencies..."
-          npm ci
+          # Ensure we're in the right directory
+          pwd
+          ls -la
           
-          # Build the React web application
+          # Install Node.js dependencies with timeout and retry
+          echo "📦 Installing dependencies..."
+          timeout 600 npm ci || {
+            echo "npm ci failed, trying npm install..."
+            npm install --no-audit --no-fund
+          }
+          
+          # Build the React web application with extended timeout
           echo "🔨 Building web application..."
-          npm run build
+          timeout 900 npm run build || {
+            echo "Build failed, checking environment..."
+            node --version
+            npm --version
+            echo "Retrying build..."
+            npm run build
+          }
+          
+          # Verify build output
+          echo "🔍 Verifying build output..."
+          ls -la dist/
           
           # Sync Capacitor iOS project with latest web build
           echo "🔄 Syncing Capacitor..."
-          npx cap sync ios
+          npx cap sync ios --no-open
+          
+          # Verify iOS sync
+          echo "🔍 Verifying iOS sync..."
+          ls -la ios/App/App/public/
           
           echo "✅ Web app build completed successfully!"
       
@@ -45,10 +68,11 @@ workflows:
           destination: "generic/platform=iOS"
           archive: true
           
-          # Build configuration
+          # Build configuration with proper team ID
           build_settings:
-            # Code signing
+            # Code signing - Use your actual team ID
             CODE_SIGN_STYLE: "Automatic"
+            DEVELOPMENT_TEAM: "A43TZWNYA3"
             
             # Deployment settings
             IPHONEOS_DEPLOYMENT_TARGET: "13.0"
@@ -61,6 +85,14 @@ workflows:
             
             # Bundle settings
             PRODUCT_BUNDLE_IDENTIFIER: "com.beanstalker.member"
+            
+            # Additional build settings
+            ONLY_ACTIVE_ARCH: "NO"
+            VALID_ARCHS: "arm64"
+            ARCHS: "arm64"
+            
+            # Disable indexing for faster builds
+            COMPILER_INDEX_STORE_ENABLE: "NO"
             
           # Archive for TestFlight
           archive_configuration: "Release"
