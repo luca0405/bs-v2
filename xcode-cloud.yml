@@ -1,0 +1,133 @@
+# Bean Stalker Xcode Cloud Workflow Configuration
+version: 1
+
+workflows:
+  # Main TestFlight Build Workflow
+  bean-stalker-testflight:
+    name: "Bean Stalker TestFlight"
+    description: "Build Bean Stalker iOS app and upload to TestFlight"
+    
+    # Trigger on main branch pushes and pull requests
+    branch_patterns:
+      - "main"
+      - "master"
+    
+    # Build environment
+    environment:
+      xcode: "15.2"
+      macos: "14.2"
+    
+    # Build steps
+    steps:
+      # Step 1: Prepare Node.js environment and build web app
+      - name: "Prepare Web App"
+        script: |
+          echo "🚀 Setting up Bean Stalker build environment..."
+          
+          # Install Node.js dependencies
+          echo "📦 Installing dependencies..."
+          npm ci
+          
+          # Build the React web application
+          echo "🔨 Building web application..."
+          npm run build
+          
+          # Sync Capacitor iOS project with latest web build
+          echo "🔄 Syncing Capacitor..."
+          npx cap sync ios
+          
+          echo "✅ Web app build completed successfully!"
+      
+      # Step 2: Build and archive iOS app
+      - name: "Build iOS App"
+        xcode:
+          scheme: "App"
+          destination: "generic/platform=iOS"
+          archive: true
+          
+          # Build configuration
+          build_settings:
+            # Code signing
+            CODE_SIGN_STYLE: "Automatic"
+            
+            # Deployment settings
+            IPHONEOS_DEPLOYMENT_TARGET: "13.0"
+            
+            # Capacitor requirements
+            ENABLE_BITCODE: "NO"
+            
+            # Swift settings
+            SWIFT_VERSION: "5.0"
+            
+            # Bundle settings
+            PRODUCT_BUNDLE_IDENTIFIER: "com.beanstalker.member"
+            
+          # Archive for TestFlight
+          archive_configuration: "Release"
+    
+    # Post-build actions
+    actions:
+      # Automatically upload to TestFlight
+      - name: "Upload to TestFlight"
+        upload_to_testflight:
+          # Internal testing group
+          groups:
+            - "Internal Testers"
+          
+          # Beta app review info
+          beta_app_review_info:
+            contact_email: "ninz@myma.com.au"
+            contact_first_name: "Bean"
+            contact_last_name: "Stalker"
+            contact_phone: "+61400000000"
+            demo_account_name: "iamninz"
+            demo_account_password: "password123"
+            notes: |
+              Bean Stalker iOS app for TestFlight testing.
+              
+              Test Features:
+              - Premium membership registration (IAP)
+              - Coffee menu browsing and ordering
+              - Credit purchase and management
+              - Square Kitchen Display integration
+              - Push notifications
+              - Biometric authentication
+              
+              Test Account: iamninz / password123
+          
+          # Release notes
+          whats_new: |
+            Bean Stalker iOS App - TestFlight Build
+            
+            ✅ Premium coffee ordering experience
+            ✅ In-App Purchase integration ready
+            ✅ Square Kitchen Display sync
+            ✅ Real-time order tracking
+            ✅ Biometric authentication support
+            ✅ Push notifications
+            
+            Ready for production testing!
+
+  # Development Build Workflow (optional)
+  bean-stalker-dev:
+    name: "Bean Stalker Development"
+    description: "Development builds for testing"
+    
+    # Trigger on develop branch
+    branch_patterns:
+      - "develop"
+      - "feature/*"
+    
+    # Lighter build for development
+    steps:
+      - name: "Quick Build Check"
+        script: |
+          npm ci
+          npm run build
+          npx cap sync ios
+      
+      - name: "Build Check"
+        xcode:
+          scheme: "App"
+          destination: "generic/platform=iOS Simulator"
+          build_only: true
